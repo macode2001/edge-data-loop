@@ -17,6 +17,8 @@ std::filesystem::path CacheStore::save_packet(const DataPacket& packet) const {
     ensure_directories();
     const auto target = cache_dir_ / (packet.packet_id + ".json");
     const auto temp = cache_dir_ / (packet.packet_id + ".tmp");
+
+    // Write a temp file first, then rename it to .json after the write succeeds.
     std::filesystem::remove(temp);
 
     std::ofstream file(temp, std::ios::binary);
@@ -46,11 +48,13 @@ void CacheStore::mark_sent(const std::filesystem::path& cached_file) const {
     ensure_directories();
     auto target = sent_dir_ / cached_file.filename();
     int duplicate_index = 1;
+
     while (std::filesystem::exists(target)) {
         target = sent_dir_ /
             (cached_file.stem().string() + "-dup-" + std::to_string(duplicate_index) +
              cached_file.extension().string());
         ++duplicate_index;
     }
+
     std::filesystem::rename(cached_file, target);
 }

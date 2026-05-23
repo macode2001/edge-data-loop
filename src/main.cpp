@@ -14,6 +14,7 @@
 
 namespace {
 
+// Runtime configuration. Values in config/agent.conf override these defaults.
 struct Config {
     std::string server_host = "127.0.0.1";
     int server_port = 8080;
@@ -24,6 +25,8 @@ struct Config {
     int sample_interval_ms = 200;
     int periodic_trigger_every = 15;
     int max_packets = 60;
+    double hard_brake_threshold = -5.0;
+    double obstacle_distance_threshold = 10.0;
 };
 
 std::map<std::string, std::string> read_kv_file(const std::filesystem::path& path) {
@@ -51,6 +54,14 @@ int to_int(const std::map<std::string, std::string>& values, const std::string& 
     return std::stoi(it->second);
 }
 
+double to_double(const std::map<std::string, std::string>& values, const std::string& key, double fallback) {
+    const auto it = values.find(key);
+    if (it == values.end()) {
+        return fallback;
+    }
+    return std::stod(it->second);
+}
+
 std::string to_string_value(const std::map<std::string, std::string>& values,
                             const std::string& key,
                             const std::string& fallback) {
@@ -70,17 +81,21 @@ Config load_config() {
     config.sample_interval_ms = to_int(values, "sample_interval_ms", config.sample_interval_ms);
     config.periodic_trigger_every = to_int(values, "periodic_trigger_every", config.periodic_trigger_every);
     config.max_packets = to_int(values, "max_packets", config.max_packets);
+    config.hard_brake_threshold =
+        to_double(values, "hard_brake_threshold", config.hard_brake_threshold);
+    config.obstacle_distance_threshold =
+        to_double(values, "obstacle_distance_threshold", config.obstacle_distance_threshold);
     return config;
 }
 
-std::string detect_trigger(const SensorFrame& frame, int periodic_trigger_every) {
-    if (frame.acceleration_mps2 < -5.0) {
+std::string detect_trigger(const SensorFrame& frame, const Config& config) {
+    if (frame.acceleration_mps2 < config.hard_brake_threshold) {
         return "hard_brake";
     }
-    if (frame.obstacle_distance_m < 6.0) {
+    if (frame.obstacle_distance_m < config.obstacle_distance_threshold) {
         return "obstacle_close";
     }
-    if (frame.sequence % periodic_trigger_every == 0) {
+    if (frame.sequence % config.periodic_trigger_every == 0) {
         return "periodic_sample";
     }
     return {};
@@ -127,7 +142,7 @@ int run_agent() {
             ring_buffer.pop_front();
         }
 
-        const auto reason = detect_trigger(frame, config.periodic_trigger_every);
+        const auto reason = detect_trigger(frame, config);
         if (!reason.empty()) {
             const auto packet = build_packet(config.vehicle_id, reason, ring_buffer, frame);
             const auto file = store.save_packet(packet);

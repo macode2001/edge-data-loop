@@ -10,6 +10,7 @@ Uploader::Uploader(CacheStore& store, std::string host, int port, std::string pa
 
 int Uploader::upload_once() const {
     int uploaded = 0;
+
     for (const auto& file : store_.list_cached_packets()) {
         std::ifstream in(file, std::ios::binary);
         std::ostringstream body;

@@ -6,6 +6,8 @@
 #include <string>
 #include <vector>
 
+// One sensor frame. In a real vehicle this data may come from CAN, GNSS,
+// IMU, perception, ROS2 topics, CyberRT channels, or DDS messages.
 struct SensorFrame {
     int sequence = 0;
     double speed_mps = 0.0;
@@ -16,6 +18,8 @@ struct SensorFrame {
     std::chrono::system_clock::time_point timestamp;
 };
 
+// One event packet. A packet contains several frames around the trigger point,
+// not only the current frame.
 struct DataPacket {
     std::string packet_id;
     std::string vehicle_id;
@@ -30,6 +34,7 @@ inline long long to_epoch_ms(std::chrono::system_clock::time_point ts) {
         .count();
 }
 
+// Escape special characters before writing a JSON string manually.
 inline std::string json_escape(const std::string& value) {
     std::ostringstream out;
     for (char ch : value) {
@@ -57,10 +62,12 @@ inline std::string json_escape(const std::string& value) {
     return out.str();
 }
 
+// Simple privacy handling: keep GPS at grid-level precision.
 inline double anonymize_coord(double value) {
     return static_cast<long long>(value * 1000.0) / 1000.0;
 }
 
+// Serialize DataPacket into the JSON format accepted by backend/server.py.
 inline std::string packet_to_json(const DataPacket& packet) {
     std::ostringstream out;
     out << std::fixed << std::setprecision(3);
